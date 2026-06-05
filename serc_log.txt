@@ -1,0 +1,11 @@
+[LOG] System started
+[PROCESS] CREATED | PID=1 | Name=Ambulance
+[PROCESS] CREATED | PID=2 | Name=FireTruck
+[PROCESS] CREATED | PID=3 | Name=PoliceCar
+[PROCESS] CREATED | PID=4 | Name=w
+[SCHEDULER] FCFS | AvgWait=0.00 | AvgTurn=0.00
+[LOG] System started
+[LOG] System started
+[PROCESS] CREATED | PID=1 | Name=Fire
+[2026-06-05 23:07:55] [LOG] System started
+[2026-06-05 23:14:07] [PROCESS] CREATED | PID=1 | Name=Fire1 | Description=Fire in kitwe near clinic
