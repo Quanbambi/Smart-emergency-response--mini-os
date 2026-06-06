@@ -35,6 +35,233 @@ void log_process_action(char *action, int process_id, char *name, char *descript
 void log_scheduling(char *algorithm, float avg_wait, float avg_turn);
 int handle_menu_choice(int choice);
 
+// ============ FILE-BASED STORAGE FUNCTIONS ============
+
+// Convert state enum to string
+const char* state_to_str(enum State state) {
+    if (state == NEW) return "NEW";
+    if (state == READY) return "READY";
+    if (state == RUNNING) return "RUNNING";
+    if (state == WAITING) return "WAITING";
+    if (state == TERMINATED) return "TERMINATED";
+    return "UNKNOWN";
+}
+
+// Convert string to state enum
+enum State str_to_state(const char *state_str) {
+    if (strcmp(state_str, "NEW") == 0) return NEW;
+    if (strcmp(state_str, "READY") == 0) return READY;
+    if (strcmp(state_str, "RUNNING") == 0) return RUNNING;
+    if (strcmp(state_str, "WAITING") == 0) return WAITING;
+    if (strcmp(state_str, "TERMINATED") == 0) return TERMINATED;
+    return NEW;
+}
+
+// Save a process to processes.txt (append or update)
+void save_process_to_file(struct PCB proc) {
+    FILE *fp = fopen("processes.txt", "a");
+    if (fp == NULL) {
+        printf("Error: Cannot open processes.txt for writing!\n");
+        return;
+    }
+    // CSV format: PID,Name,Description,Priority,State,BurstTime,RemainingTime,WaitingTime,TurnaroundTime
+    fprintf(fp, "%d,%s,%s,%d,%s,%d,%d,%d,%d\n",
+            proc.process_id, proc.name, proc.description, (int)proc.priority,
+            state_to_str(proc.state), proc.burst_time, proc.remaining_time,
+            proc.waiting_time, proc.turnaround_time);
+    fclose(fp);
+}
+
+// Load all processes from processes.txt into memory
+void load_processes_from_file() {
+    FILE *fp = fopen("processes.txt", "r");
+    if (fp == NULL) {
+        // File doesn't exist yet, that's okay
+        return;
+    }
+
+    process_count = 0;
+    next_pid = 1;
+    char line[300];
+    while (fgets(line, sizeof(line), fp)) {
+        // Remove trailing newline
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n') {
+            line[len-1] = '\0';
+        }
+
+        struct PCB proc;
+        char state_str[20];
+
+        int comma_positions[32];
+        int comma_count = 0;
+        for (int i = 0; i < strlen(line); i++) {
+            if (line[i] == ',') {
+                if (comma_count < 32) {
+                    comma_positions[comma_count] = i;
+                }
+                comma_count++;
+            }
+        }
+
+        if (comma_count < 8) {
+            continue; // malformed line
+        }
+
+        int idx_pid = 0;
+        int idx_name = 1;
+        int idx_priority = comma_count - 6;
+        int idx_state = comma_count - 5;
+        int idx_burst = comma_count - 4;
+        int idx_remaining = comma_count - 3;
+        int idx_waiting = comma_count - 2;
+        int idx_turnaround = comma_count - 1;
+
+        // Extract PID
+        char pid_buf[16];
+        int pid_len = comma_positions[idx_pid] - 0;
+        strncpy(pid_buf, line, pid_len < 15 ? pid_len : 15);
+        pid_buf[pid_len < 15 ? pid_len : 15] = '\0';
+        proc.process_id = atoi(pid_buf);
+
+        // Extract Name
+        int name_len = comma_positions[idx_name] - comma_positions[idx_pid] - 1;
+        strncpy(proc.name, line + comma_positions[idx_pid] + 1, name_len < 19 ? name_len : 19);
+        proc.name[name_len < 19 ? name_len : 19] = '\0';
+
+        // Extract Description
+        int desc_start = comma_positions[idx_name] + 1;
+        int desc_end = comma_positions[idx_priority];
+        int desc_len = desc_end - desc_start;
+        strncpy(proc.description, line + desc_start, desc_len < 99 ? desc_len : 99);
+        proc.description[desc_len < 99 ? desc_len : 99] = '\0';
+
+        // Extract priority and state
+        char priority_buf[8];
+        int priority_len = comma_positions[idx_state] - comma_positions[idx_priority] - 1;
+        strncpy(priority_buf, line + comma_positions[idx_priority] + 1, priority_len < 7 ? priority_len : 7);
+        priority_buf[priority_len < 7 ? priority_len : 7] = '\0';
+        proc.priority = (enum Priority)atoi(priority_buf);
+
+        int state_len = comma_positions[idx_burst] - comma_positions[idx_state] - 1;
+        strncpy(state_str, line + comma_positions[idx_state] + 1, state_len < 19 ? state_len : 19);
+        state_str[state_len < 19 ? state_len : 19] = '\0';
+        proc.state = str_to_state(state_str);
+
+        proc.burst_time = atoi(line + comma_positions[idx_burst] + 1);
+        proc.remaining_time = atoi(line + comma_positions[idx_remaining] + 1);
+        proc.waiting_time = atoi(line + comma_positions[idx_waiting] + 1);
+        proc.turnaround_time = atoi(line + comma_positions[idx_turnaround] + 1);
+
+        if (process_count < MAX_PROCESSES) {
+            process_table[process_count] = proc;
+            process_count++;
+            if (proc.process_id >= next_pid) {
+                next_pid = proc.process_id + 1;
+            }
+        }
+    }
+    fclose(fp);
+}
+
+// Update a process in processes.txt
+void update_process_in_file(struct PCB proc) {
+    FILE *temp_fp = fopen("processes_temp.txt", "w");
+    FILE *fp = fopen("processes.txt", "r");
+    
+    if (fp == NULL || temp_fp == NULL) {
+        printf("Error: Cannot access process file!\n");
+        if (temp_fp) fclose(temp_fp);
+        if (fp) fclose(fp);
+        return;
+    }
+
+    char line[300];
+    while (fgets(line, sizeof(line), fp)) {
+        int pid;
+        if (sscanf(line, "%d,", &pid) == 1) {
+            if (pid == proc.process_id) {
+                // Write the updated process
+                fprintf(temp_fp, "%d,%s,%s,%d,%s,%d,%d,%d,%d\n",
+                        proc.process_id, proc.name, proc.description, (int)proc.priority,
+                        state_to_str(proc.state), proc.burst_time, proc.remaining_time,
+                        proc.waiting_time, proc.turnaround_time);
+            } else {
+                // Write the original line
+                fprintf(temp_fp, "%s", line);
+            }
+        }
+    }
+
+    fclose(fp);
+    fclose(temp_fp);
+    
+    // Replace original file with temp file
+    remove("processes.txt");
+    rename("processes_temp.txt", "processes.txt");
+}
+
+// Delete a process from processes.txt
+void delete_process_from_file(int process_id) {
+    FILE *temp_fp = fopen("processes_temp.txt", "w");
+    FILE *fp = fopen("processes.txt", "r");
+    
+    if (fp == NULL) {
+        printf("No processes file found.\n");
+        if (temp_fp) fclose(temp_fp);
+        return;
+    }
+
+    if (temp_fp == NULL) {
+        printf("Error: Cannot write to temporary file!\n");
+        fclose(fp);
+        return;
+    }
+
+    char line[300];
+    int found = 0;
+    while (fgets(line, sizeof(line), fp)) {
+        int pid;
+        if (sscanf(line, "%d,", &pid) == 1) {
+            if (pid == process_id) {
+                found = 1;
+                // Skip this line (don't write it)
+            } else {
+                // Write other lines
+                fprintf(temp_fp, "%s", line);
+            }
+        }
+    }
+
+    fclose(fp);
+    fclose(temp_fp);
+    
+    if (found) {
+        remove("processes.txt");
+        rename("processes_temp.txt", "processes.txt");
+        printf("Process %d deleted from storage.\n", process_id);
+    } else {
+        remove("processes_temp.txt");
+        printf("Process %d not found in storage.\n", process_id);
+    }
+}
+
+// Delete all processes from processes.txt
+void delete_all_processes_from_file() {
+    if (remove("processes.txt") == 0) {
+        printf("All processes deleted from storage.\n");
+    } else {
+        printf("No process storage file found to delete.\n");
+    }
+}
+
+// Delete all processes from memory and storage
+void delete_all_processes() {
+    process_count = 0;
+    next_pid = 1;
+    delete_all_processes_from_file();
+}
+
 // Create a new process record with specified attributes
 void create_process_record(char name[], char description[], enum Priority priority, int burst_time) {
     if (process_count >= MAX_PROCESSES) {
@@ -56,10 +283,8 @@ void create_process_record(char name[], char description[], enum Priority priori
     process_table[process_count] = new_process;
     process_count++;
 
-    printf("Process created: %s (PID=%d, Priority=%d, Burst=%d)\n",
-           name, new_process.process_id, (int)priority, burst_time);
-    printf("Description: %s\n", description);
-    printf("\n✓ The emergency process '%s' is being processed by the system.\n\n", name);
+    // Save to file immediately
+    save_process_to_file(new_process);
 }
 
 // Create a new process by prompting the user for input
@@ -100,8 +325,12 @@ void create_process() {
     printf("Enter burst time: ");
     scanf("%d", &burst);
 
+    // Create process and gather all inputs first
     create_process_record(name, description, priority, burst);
     init_process_resources(process_count - 1);
+    
+    // Now print final success message after all inputs are complete
+    printf("\nThe emergency process '%s' (PID=%d) has been successfully created and set to NEW state.\n\n", name, next_pid - 1);
     log_process_action("CREATED", next_pid - 1, name, description);
 }
 
@@ -114,22 +343,18 @@ const char* priority_to_str(enum Priority p) {
 
 // List all processes
 void list_processes() {
+    // Load latest processes from file
+    load_processes_from_file();
+    
     printf("\nProcess table\n");
     printf("PID  Name                Priority  State     Burst  Description\n");
 
     for (int i = 0; i < process_count; i++) {
-        char *state_str;
-        if (process_table[i].state == NEW) state_str = "NEW";
-        else if (process_table[i].state == READY) state_str = "READY";
-        else if (process_table[i].state == RUNNING) state_str = "RUNNING";
-        else if (process_table[i].state == WAITING) state_str = "WAITING";
-        else state_str = "TERMINATED";
-
         printf("%-4d %-20s %-8s %-10s %-5d %s\n",
                process_table[i].process_id,
                process_table[i].name,
                priority_to_str(process_table[i].priority),
-               state_str,
+               state_to_str(process_table[i].state),
                process_table[i].burst_time,
                process_table[i].description);
     }
@@ -141,6 +366,8 @@ void suspend_process(int process_id) {
         if (process_table[i].process_id == process_id) {
             if (process_table[i].state == RUNNING || process_table[i].state == READY) {
                 process_table[i].state = WAITING;
+                // Update in file
+                update_process_in_file(process_table[i]);
                 printf("Process %d suspended (now WAITING)\n", process_id);
             } else {
                 printf("Cannot suspend process %d in current state\n", process_id);
@@ -156,11 +383,31 @@ void terminate_process(int process_id) {
     for (int i = 0; i < process_count; i++) {
         if (process_table[i].process_id == process_id) {
             process_table[i].state = TERMINATED;
+            // Update in file
+            update_process_in_file(process_table[i]);
             printf("Process %d terminated.\n", process_id);
             return;
         }
     }
     printf("Process %d not found!\n", process_id);
+}
+
+// Delete a process completely from storage
+void delete_process(int process_id) {
+    // Delete from file
+    delete_process_from_file(process_id);
+    
+    // Delete from memory
+    for (int i = 0; i < process_count; i++) {
+        if (process_table[i].process_id == process_id) {
+            // Shift remaining processes
+            for (int j = i; j < process_count - 1; j++) {
+                process_table[j] = process_table[j + 1];
+            }
+            process_count--;
+            return;
+        }
+    }
 }
 
 // 2. CPU scheduling
@@ -615,6 +862,27 @@ int handle_menu_choice(int choice) {
         clear_log();
 
     } else if (choice == 12) {
+        int sub_choice;
+        printf("Delete single process (1) or delete all processes (2)? ");
+        scanf("%d", &sub_choice);
+        if (sub_choice == 1) {
+            printf("Enter PID to delete: ");
+            scanf("%d", &process_id);
+            delete_process(process_id);
+        } else if (sub_choice == 2) {
+            char confirm;
+            printf("Are you sure you want to delete all processes? (y/n): ");
+            scanf(" %c", &confirm);
+            if (confirm == 'y' || confirm == 'Y') {
+                delete_all_processes();
+            } else {
+                printf("Delete all cancelled.\n");
+            }
+        } else {
+            printf("Invalid delete option.\n");
+        }
+
+    } else if (choice == 13) {
         log_event("System shutdown");
         printf("Shutting down SERC OS...\n");
         return 0;  // Signal to exit
@@ -632,6 +900,7 @@ int main() {
 
     printf("SMART EMERGENCY RESPONSE CENTER OS SIMULATOR\n");
     log_event("System started");
+    load_processes_from_file();  // Load existing processes on startup
     while (1) {
         printf("\nMain menu\n");
         printf("1.  Create new process\n");
@@ -645,7 +914,8 @@ int main() {
         printf("9.  Release resources\n");
         printf("10. View system log\n");
         printf("11. Clear log file\n");
-        printf("12. Exit\n");
+        printf("12. Delete process / all processes\n");
+        printf("13. Exit\n");
         printf("Choose option: ");
         scanf("%d", &choice);
 

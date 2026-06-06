@@ -1,0 +1,2 @@
+1,Fire1,fire in kitwe,1,NEW,10,10,0,0
+2,fIRE2,FIRE AT THE CLINIC,1,NEW,10,10,0,0
