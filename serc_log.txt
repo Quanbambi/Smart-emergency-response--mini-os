@@ -10,3 +10,13 @@
 [2026-06-06 13:41:30] [LOG] System started
 [2026-06-06 13:41:40] [LOG] System started
 [2026-06-06 13:46:45] [LOG] System started
+[2026-06-08 11:35:59] [LOG] System started
+[2026-06-08 11:43:52] [LOG] System started
+[2026-06-08 12:55:51] [LOG] System started
+[2026-06-08 15:12:52] [LOG] System started
+[2026-06-08 15:15:06] [PROCESS] CREATED | PID=3 | Name=Fire1 | Description=Fire in Chamboli
+[2026-06-08 15:47:37] [SCHEDULER] FCFS | AvgWait=10.00 | AvgTurn=20.00
+[2026-06-09 15:24:36] [LOG] System started
+[2026-06-09 15:25:06] [SCHEDULER] FCFS | AvgWait=10.00 | AvgTurn=20.00
+[2026-06-09 15:27:58] [PROCESS] CREATED | PID=4 | Name=Malaria | Description=Malaria victim at buchi
+[2026-06-09 15:28:21] [PROCESS] SUSPENDED | PID=4 | Name= | Description=Malaria victim at buchi

@@ -1,2 +1,4 @@
-1,Fire1,fire in kitwe,1,NEW,10,10,0,0
-2,fIRE2,FIRE AT THE CLINIC,1,NEW,10,10,0,0
+1,Fire1,fire in kitwe,1,TERMINATED,10,10,0,10
+2,fIRE2,FIRE AT THE CLINIC,1,TERMINATED,10,10,10,20
+3,Fire1,Fire in Chamboli,1,TERMINATED,10,10,20,30
+4,Malaria,Malaria victim at buchi,2,NEW,10,10,0,0
