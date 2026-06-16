@@ -20,3 +20,27 @@
 [2026-06-09 15:25:06] [SCHEDULER] FCFS | AvgWait=10.00 | AvgTurn=20.00
 [2026-06-09 15:27:58] [PROCESS] CREATED | PID=4 | Name=Malaria | Description=Malaria victim at buchi
 [2026-06-09 15:28:21] [PROCESS] SUSPENDED | PID=4 | Name= | Description=Malaria victim at buchi
+[2026-06-13 00:47:48] [LOG] System started
+[2026-06-13 00:48:02] [LOG] System started
+[2026-06-13 00:48:02] [LOG] System started
+[2026-06-13 00:48:55] [PROCESS] CREATED | PID=1 | Name=quan | Description=quan did this 
+[2026-06-13 00:56:56] [LOG] System started
+[2026-06-13 00:59:11] [LOG] System started
+[2026-06-13 00:59:38] [PROCESS] CREATED | PID=1 | Name=quan | Description=quan did this
+[2026-06-13 01:00:04] [PROCESS] CREATED | PID=2 | Name=quan1 | Description=
+[2026-06-13 01:00:57] [LOG] System started
+[2026-06-15 12:34:31] [LOG] System started
+[2026-06-15 12:36:25] [PROCESS] CREATED | PID=3 | Name=Quan | Description=fucked a minor
+[2026-06-15 12:38:13] [PROCESS] CREATED | PID=4 | Name=Quan | Description=fucked a minor
+[2026-06-15 12:44:00] [LOG] System started
+[2026-06-15 12:49:12] [PROCESS] CREATED | PID=1 | Name=Quan | Description=
+[2026-06-15 12:57:52] [LOG] System started
+[2026-06-15 12:58:52] [PROCESS] CREATED | PID=2 | Name=quan | Description=quan is here
+[2026-06-15 13:00:08] [LOG] System started
+[2026-06-15 13:00:29] [LOG] System started
+[2026-06-15 13:01:32] [PROCESS] CREATED | PID=1 | Name=quan | Description=quan is here
+[2026-06-15 15:22:34] [LOG] System started
+[2026-06-15 15:22:35] [LOG] System shutdown
+[2026-06-15 15:25:31] [LOG] System started
+[2026-06-15 15:25:53] [PROCESS] CREATED | PID=2 | Name=quan | Description=quan did this
+[2026-06-16 22:52:40] [LOG] System started
