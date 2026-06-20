@@ -6,8 +6,8 @@
 //Global declarations
 #define maxProcesses 10
 #define numResources 3
-#define TOTAL_MEMORY 1400 
-#define NUM_PARTITIONS 6
+#define totalMemory 1400 
+#define numberOfPartitions 6
 enum State { NEW, READY, RUNNING, WAITING, TERMINATED };
 enum Priority { HIGH = 1, MEDIUM = 2, LOW = 3};
 // Process Control Block (PCB) structure
@@ -16,38 +16,41 @@ struct PCB {
     char name[20];
     char description[100];
     enum Priority priority;
-    int burst_time;
-    int remaining_time;
-    int waiting_time;
-    int turnaround_time;
+    int burstTime;
+    int remainingTime;
+    int waitingTime;
+    int turnaroundTime;
     enum State state;
-    int memory_required;
-    int memory_partition_id;
-    int arrival_time;
+    int memoryRequired;
+    int memoryPartitionID;
+    int arrivalTime;
 };
 // Some global variables to manage processes and resources
 struct PCB processTable[maxProcesses];
-int processCount = 0, nextPID = 1, available[numResources] = {5, 4, 10}, max_need[maxProcesses][numResources], allocation[maxProcesses][numResources], need[maxProcesses][numResources];
-void init_process_resources(int process_index);
-void log_process_action(char *action, int processID, char *name, char *description);
-void log_scheduling(char *algorithm, float avg_wait, float avg_turn);
-void init_system_memory();
-int allocate_memory_first_fit(int pid, int size_required);
-void free_memory_by_pid(int pid);
-void show_memory_map();
-void free_system_memory();
-void release_process_resources(int process_index);
+int processCount = 0, nextPID = 1, available[numResources] = {5, 4, 10}, maxNeed[maxProcesses][numResources], allocation[maxProcesses][numResources], need[maxProcesses][numResources];
+void initProcessResources(int processIndex);
+void logProcessAction(char *action, int processID, char *name, char *description);
+void logScheduling(char *algorithm, float averageWaitingTime, float averageTurnaround);
+void initSystemMemory();
+int allocateMemoryFirstFit(int pid, int sizeRequired);
+void freeMemoryByPID(int pid);
+void showMemoryMap();
+void freeSystemMemory();
+void releaseProcessResources(int processIndex);
+int handleMenuChoice(int choice);
+
 // memory partition structure and management
 typedef struct MemoryPartition {
-    int block_id;
-    int total_size; 
-    int free_space; 
-    int is_occupied; 
-    int assigned_pid;
+    int blockID;
+    int totalSize; 
+    int freeSpace; 
+    int isOccupied; 
+    int assignedPID;
 } MemoryPartition;
 
-MemoryPartition memory_map[NUM_PARTITIONS];
-int handle_menu_choice(int choice);
+MemoryPartition memoryMap[numberOfPartitions];
+
+
 //Function converts enum to string 
 const char* stateToString(enum State state) {
     if (state == NEW) return "NEW";
@@ -74,10 +77,10 @@ void saveProcessToFile(struct PCB process) {
     }
         fprintf(fp, "%d,%s,%s,%d,%s,%d,%d,%d,%d,%d,%d,%d\n",
             process.processID, process.name, process.description, (int)process.priority,
-            stateToString(process.state), process.burst_time, process.remaining_time,
-            process.waiting_time, process.turnaround_time,
-            process.memory_required, process.memory_partition_id,
-            process.arrival_time);
+            stateToString(process.state), process.burstTime, process.remainingTime,
+            process.waitingTime, process.turnaroundTime,
+            process.memoryRequired, process.memoryPartitionID,
+            process.arrivalTime);
     fclose(fp);
 }
  
@@ -96,54 +99,54 @@ void loadProcessesFromFile() {
         }
         struct PCB process;
         char stateString[20];
-        int comma_positions[32];
-        int comma_count = 0;
+        int commaPositions[32];
+        int commaCount = 0;
         for (size_t i = 0; i < strlen(line); i++) {
             if (line[i] == ',') {
-                if (comma_count < 32) {
-                    comma_positions[comma_count] = (int)i;
+                if (commaCount < 32) {
+                    commaPositions[commaCount] = (int)i;
                 }
-                comma_count++;
+                commaCount++;
             }
         }
-        if (comma_count < 11) {
+        if (commaCount < 11) {
             continue;
         }
-        int index_pid = 0, indexName = 1, indexPriority = comma_count - 9, indexState = comma_count - 8, index_burst = comma_count - 7, index_remaining = comma_count - 6, index_waiting = comma_count - 5, index_turnaround = comma_count - 4, index_memory = comma_count - 3, index_partition = comma_count - 2, index_arrival = comma_count - 1, pidLength = comma_positions[index_pid];
+        int indexPID = 0, indexName = 1, indexPriority = commaCount - 9, indexState = commaCount - 8, indexBurst = commaCount - 7, indexRemaining = commaCount - 6, indexWaiting = commaCount - 5, indexTurnaround = commaCount - 4, indexMemory = commaCount - 3, indexPartition = commaCount - 2, indexArrivalTime = commaCount - 1, pidLength = commaPositions[indexPID];
         char pidBuffer[16];
         //Copy Pid
         strncpy(pidBuffer, line, pidLength < 15 ? pidLength : 15);
         pidBuffer[pidLength < 15 ? pidLength : 15] = '\0';
         process.processID = atoi(pidBuffer);
         //copy process name
-        int name_len = comma_positions[indexName] - comma_positions[index_pid] - 1;
-        strncpy(process.name, line + comma_positions[index_pid] + 1, name_len < 19 ? name_len : 19);
-        process.name[name_len < 19 ? name_len : 19] = '\0';
+        int nameLength = commaPositions[indexName] - commaPositions[indexPID] - 1;
+        strncpy(process.name, line + commaPositions[indexPID] + 1, nameLength < 19 ? nameLength : 19);
+        process.name[nameLength < 19 ? nameLength : 19] = '\0';
         //copy process description
-        int descriptionStart = comma_positions[indexName] + 1;
-        int descriptionEnd = comma_positions[indexPriority];
+        int descriptionStart = commaPositions[indexName] + 1;
+        int descriptionEnd = commaPositions[indexPriority];
         int descriptionLength = descriptionEnd - descriptionStart;
         strncpy(process.description, line + descriptionStart, descriptionLength < 99 ? descriptionLength : 99);
         process.description[descriptionLength < 99 ? descriptionLength : 99] = '\0';
         //copy process priority
         char priorityBuffer[8];
-        int priorityLength = comma_positions[indexState] - comma_positions[indexPriority] - 1;
-        strncpy(priorityBuffer, line + comma_positions[indexPriority] + 1, priorityLength < 7 ? priorityLength : 7);
+        int priorityLength = commaPositions[indexState] - commaPositions[indexPriority] - 1;
+        strncpy(priorityBuffer, line + commaPositions[indexPriority] + 1, priorityLength < 7 ? priorityLength : 7);
         priorityBuffer[priorityLength < 7 ? priorityLength : 7] = '\0';
         process.priority = (enum Priority)atoi(priorityBuffer);
         //copy process state
-        int stateLength = comma_positions[index_burst] - comma_positions[indexState] - 1;
-        strncpy(stateString, line + comma_positions[indexState] + 1, stateLength < 19 ? stateLength : 19);
+        int stateLength = commaPositions[indexBurst] - commaPositions[indexState] - 1;
+        strncpy(stateString, line + commaPositions[indexState] + 1, stateLength < 19 ? stateLength : 19);
         stateString[stateLength < 19 ? stateLength : 19] = '\0';
         process.state = stringToState(stateString);
         //copy remaining fields
-        process.burst_time = atoi(line + comma_positions[index_burst] + 1);
-        process.remaining_time = atoi(line + comma_positions[index_remaining] + 1);
-        process.waiting_time = atoi(line + comma_positions[index_waiting] + 1);
-        process.turnaround_time = atoi(line + comma_positions[index_turnaround] + 1);
-        process.memory_required = atoi(line + comma_positions[index_memory] + 1);
-        process.memory_partition_id = atoi(line + comma_positions[index_partition] + 1);
-        process.arrival_time = atoi(line + comma_positions[index_arrival] + 1);
+        process.burstTime = atoi(line + commaPositions[indexBurst] + 1);
+        process.remainingTime = atoi(line + commaPositions[indexRemaining] + 1);
+        process.waitingTime = atoi(line + commaPositions[indexWaiting] + 1);
+        process.turnaroundTime = atoi(line + commaPositions[indexTurnaround] + 1);
+        process.memoryRequired = atoi(line + commaPositions[indexMemory] + 1);
+        process.memoryPartitionID = atoi(line + commaPositions[indexPartition] + 1);
+        process.arrivalTime = atoi(line + commaPositions[indexArrivalTime] + 1);
 
         if (processCount < maxProcesses) {
             processTable[processCount] = process;
@@ -173,10 +176,10 @@ void updateProcessInFile(struct PCB process) {
             if (pid == process.processID) {
                 fprintf(tempfp, "%d,%s,%s,%d,%s,%d,%d,%d,%d,%d,%d,%d\n",
                     process.processID, process.name, process.description, (int)process.priority,
-                    stateToString(process.state), process.burst_time, process.remaining_time,
-                    process.waiting_time, process.turnaround_time,
-                    process.memory_required, process.memory_partition_id,
-                    process.arrival_time);
+                    stateToString(process.state), process.burstTime, process.remainingTime,
+                    process.waitingTime, process.turnaroundTime,
+                    process.memoryRequired, process.memoryPartitionID,
+                    process.arrivalTime);
             } else {
                 fprintf(tempfp, "%s", line);
             }
@@ -238,9 +241,9 @@ void deleteAllProcesses() {
     processCount = 0;
     nextPID = 1;
     deleteAllProcessesFromFile();
-    free_system_memory();
+    freeSystemMemory();
 }
-void persist_all_processes() {
+void persistAllProcesses() {
     FILE *fp = fopen("processes.txt", "w");
     if (fp == NULL) {
         printf("Error: Cannot open processes.txt for writing!\n");
@@ -250,41 +253,41 @@ void persist_all_processes() {
         struct PCB *p = &processTable[i];
         fprintf(fp, "%d,%s,%s,%d,%s,%d,%d,%d,%d,%d,%d,%d\n",
             p->processID, p->name, p->description, (int)p->priority,
-            stateToString(p->state), p->burst_time, p->remaining_time,
-            p->waiting_time, p->turnaround_time,
-            p->memory_required, p->memory_partition_id,
-            p->arrival_time);
+            stateToString(p->state), p->burstTime, p->remainingTime,
+            p->waitingTime, p->turnaroundTime,
+            p->memoryRequired, p->memoryPartitionID,
+            p->arrivalTime);
     }
     fclose(fp);
 }
-void create_process_record(char name[], char description[], enum Priority priority, int burst_time, int memory_required) {
+void createProcessRecord(char name[], char description[], enum Priority priority, int burstTime, int memoryRequired) {
     if (processCount >= maxProcesses) {
         printf("Cannot create more processes.\n");
         return;
     }
-    struct PCB new_process;
-    new_process.processID = nextPID++;
-    strcpy(new_process.name, name);
-    strcpy(new_process.description, description);
-    new_process.priority = priority;
-    new_process.burst_time = burst_time;
-    new_process.remaining_time = burst_time;
-    new_process.waiting_time = 0;
-    new_process.arrival_time = processCount;
-    new_process.turnaround_time = 0;
-    new_process.state = NEW;
-    new_process.memory_required = memory_required;
-    new_process.memory_partition_id = 0;
-    processTable[processCount] = new_process;
+    struct PCB newProcess;
+    newProcess.processID = nextPID++;
+    strcpy(newProcess.name, name);
+    strcpy(newProcess.description, description);
+    newProcess.priority = priority;
+    newProcess.burstTime = burstTime;
+    newProcess.remainingTime = burstTime;
+    newProcess.waitingTime = 0;
+    newProcess.arrivalTime = processCount;
+    newProcess.turnaroundTime = 0;
+    newProcess.state = NEW;
+    newProcess.memoryRequired = memoryRequired;
+    newProcess.memoryPartitionID = 0;
+    processTable[processCount] = newProcess;
     processCount++;
-    (new_process);
+    saveProcessToFile(newProcess);
 }
-void create_process() {
+void createProcess() {
     char name[20];
     char description[100];
-    int priority_input;
+    int priorityInput;
     int burst;
-    int memory_required;
+    int memoryRequired;
     enum Priority priority;
     if (processCount >= maxProcesses) {
         printf("Cannot create more processes.\n");
@@ -301,37 +304,37 @@ void create_process() {
     }
     do {
         printf("Enter priority (1=High, 2=Medium, 3=Low): ");
-        if (scanf("%d", &priority_input) != 1) {
+        if (scanf("%d", &priorityInput) != 1) {
             while (getchar() != '\n');
-            priority_input = 0;
+            priorityInput = 0;
         }
-        if (priority_input < 1 || priority_input > 3) {
+        if (priorityInput < 1 || priorityInput > 3) {
             printf("Invalid priority. Please enter 1, 2, or 3.\n");
         }
-    } while (priority_input < 1 || priority_input > 3);
-    priority = (enum Priority)priority_input;
+    } while (priorityInput < 1 || priorityInput > 3);
+    priority = (enum Priority)priorityInput;
     printf("Enter burst time: ");
     scanf("%d", &burst);
     printf("Enter memory required (MB): ");
-    scanf("%d", &memory_required);
-    create_process_record(name, description, priority, burst, memory_required);
-    init_process_resources(processCount - 1);
+    scanf("%d", &memoryRequired);
+    createProcessRecord(name, description, priority, burst, memoryRequired);
+    initProcessResources(processCount - 1);
     
-    int assigned = allocate_memory_first_fit(nextPID - 1, memory_required);
+    int assigned = allocateMemoryFirstFit(nextPID - 1, memoryRequired);
     if (assigned > 0) {
-        processTable[processCount - 1].memory_partition_id = assigned;
+        processTable[processCount - 1].memoryPartitionID = assigned;
         updateProcessInFile(processTable[processCount - 1]);
     }
 
     printf("\nThe emergency process '%s' (PID=%d) has been successfully created and set to NEW state.\n\n", name, nextPID - 1);
-    log_process_action("CREATED", nextPID - 1, name, description);
+    logProcessAction("CREATED", nextPID - 1, name, description);
 }
-const char* priority_to_str(enum Priority p) {
+const char* priorityToStr(enum Priority p) {
     if (p == HIGH) return "High";
     if (p == MEDIUM) return "Medium";
     return "Low";
 }
-void list_processes() {
+void listProcesses() {
     loadProcessesFromFile();
     
     printf("\nProcess table\n");
@@ -339,17 +342,17 @@ void list_processes() {
     for (int i = 0; i < processCount; i++) {
         printf("%-4d %-8d %-20s %-8s %-10s %-5d %-7d %-5d %s\n",
                processTable[i].processID,
-               processTable[i].arrival_time,
+               processTable[i].arrivalTime,
                processTable[i].name,
-               priority_to_str(processTable[i].priority),
+               priorityToStr(processTable[i].priority),
                stateToString(processTable[i].state),
-               processTable[i].burst_time,
-               processTable[i].memory_required,
-               processTable[i].memory_partition_id,
+               processTable[i].burstTime,
+               processTable[i].memoryRequired,
+               processTable[i].memoryPartitionID,
                processTable[i].description);
     }
 }
-void suspend_process(int processID) {
+void suspendProcess(int processID) {
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].processID == processID) {
             if (processTable[i].state == RUNNING || processTable[i].state == READY) {
@@ -364,7 +367,7 @@ void suspend_process(int processID) {
     }
     printf("Process %d not found!\n", processID);
 }
-void resume_process(int processID) {
+void resumeProcess(int processID) {
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].processID == processID) {
             if (processTable[i].state == WAITING) {
@@ -379,19 +382,19 @@ void resume_process(int processID) {
     }
     printf("Process %d not found!\n", processID);
 }
-void release_process_resources(int process_index) {
+void releaseProcessResources(int processIndex) {
     for (int j = 0; j < numResources; j++) {
-        available[j] += allocation[process_index][j];
-        allocation[process_index][j] = 0;
-        need[process_index][j] = max_need[process_index][j];
+        available[j] += allocation[processIndex][j];
+        allocation[processIndex][j] = 0;
+        need[processIndex][j] = maxNeed[processIndex][j];
     }
 
-    if (processTable[process_index].memory_partition_id > 0) {
-        free_memory_by_pid(processTable[process_index].processID);
-        processTable[process_index].memory_partition_id = 0;
+    if (processTable[processIndex].memoryPartitionID > 0) {
+        freeMemoryByPID(processTable[processIndex].processID);
+        processTable[processIndex].memoryPartitionID = 0;
     }
 }
-void terminate_process(int processID) {
+void terminateProcess(int processID) {
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].processID == processID) {
             if (processTable[i].state == TERMINATED) {
@@ -399,7 +402,7 @@ void terminate_process(int processID) {
                 return;
             }
             processTable[i].state = TERMINATED;
-            release_process_resources(i);
+            releaseProcessResources(i);
             updateProcessInFile(processTable[i]);
             printf("Process %d terminated and its resources were freed.\n", processID);
             return;
@@ -407,12 +410,12 @@ void terminate_process(int processID) {
     }
     printf("Process %d not found!\n", processID);
 }
-void delete_process(int processID) {
+void deleteProcess(int processID) {
     deleteProcessFromFile(processID);
     
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].processID == processID) {
-            release_process_resources(i);
+            releaseProcessResources(i);
             for (int j = i; j < processCount - 1; j++) {
                 processTable[j] = processTable[j + 1];
             }
@@ -421,7 +424,7 @@ void delete_process(int processID) {
         }
     }
 }
-void reset_to_ready() {
+void resetToReady() {
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].state != TERMINATED &&
             processTable[i].state != WAITING) {
@@ -430,14 +433,14 @@ void reset_to_ready() {
         }
     }
 }
-void schedule_fcfs() {
+void scheduleFCFS() {
     printf("\nFCFS scheduling\n");
-    int current_time = 0;
-    int total_waiting = 0;
-    int total_turnaround = 0;
+    int currentTime = 0;
+    int totalWaiting = 0;
+    int totalTurnaround = 0;
     int completed = 0;
 
-    reset_to_ready();
+    resetToReady();
 
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].state == TERMINATED ||
@@ -446,30 +449,30 @@ void schedule_fcfs() {
         }
 
         
-        if (current_time < processTable[i].arrival_time) {
-            current_time = processTable[i].arrival_time;
+        if (currentTime < processTable[i].arrivalTime) {
+            currentTime = processTable[i].arrivalTime;
         }
 
-        processTable[i].waiting_time = current_time - 
-                                        processTable[i].arrival_time;
+        processTable[i].waitingTime = currentTime - 
+                                        processTable[i].arrivalTime;
         processTable[i].state = RUNNING;
         updateProcessInFile(processTable[i]);
 
         printf("Running: %s (PID=%d) | Arrival=%d | Waiting=%d\n",
                processTable[i].name, processTable[i].processID,
-               processTable[i].arrival_time,
-               processTable[i].waiting_time);
+               processTable[i].arrivalTime,
+               processTable[i].waitingTime);
 
-        current_time += processTable[i].burst_time;
-        processTable[i].turnaround_time = current_time - 
-                                           processTable[i].arrival_time;
+        currentTime += processTable[i].burstTime;
+        processTable[i].turnaroundTime = currentTime - 
+                                           processTable[i].arrivalTime;
 
-        total_waiting += processTable[i].waiting_time;
-        total_turnaround += processTable[i].turnaround_time;
+        totalWaiting += processTable[i].waitingTime;
+        totalTurnaround += processTable[i].turnaroundTime;
         completed++;
 
         processTable[i].state = TERMINATED;
-        release_process_resources(i);
+        releaseProcessResources(i);
         updateProcessInFile(processTable[i]);
     }
 
@@ -479,39 +482,39 @@ void schedule_fcfs() {
     }
 
     
-    int total_burst = 0;
+    int totalBurst = 0;
     for (int i = 0; i < processCount; i++) 
-        total_burst += processTable[i].burst_time;
+        totalBurst += processTable[i].burstTime;
 
-    float cpu_util = (current_time > 0) ? 
-        ((float)total_burst / current_time) * 100.0f : 0;
-    float avg_waiting = (float)total_waiting / completed;
-    float avg_turnaround = (float)total_turnaround / completed;
+    float cpuUtilities = (currentTime > 0) ? 
+        ((float)totalBurst / currentTime) * 100.0f : 0;
+    float averageWaitingTime = (float)totalWaiting / completed;
+    float averageTurnaroundTime = (float)totalTurnaround / completed;
 
     printf("\nResults:\n");
     printf("Total processes    : %d\n", completed);
-    printf("Avg Waiting Time   : %.2f\n", avg_waiting);
-    printf("Avg Turnaround Time: %.2f\n", avg_turnaround);
-    printf("CPU Utilization    : %.2f%%\n", cpu_util);
-    log_scheduling("FCFS", avg_waiting, avg_turnaround);
+    printf("Avg Waiting Time   : %.2f\n", averageWaitingTime);
+    printf("Avg Turnaround Time: %.2f\n", averageTurnaroundTime);
+    printf("CPU Utilization    : %.2f%%\n", cpuUtilities);
+    logScheduling("FCFS", averageWaitingTime, averageTurnaroundTime);
 }
-void schedule_priority() {
+void schedulePriority() {
     printf("\nPriority scheduling\n");
     struct PCB temp[maxProcesses];
-    int temp_count = 0;
+    int tempCount = 0;
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].state != TERMINATED &&
             processTable[i].state != WAITING) {
-            temp[temp_count] = processTable[i];
-            temp_count++;
+            temp[tempCount] = processTable[i];
+            tempCount++;
         }
     }
-    if (temp_count == 0) {
+    if (tempCount == 0) {
         printf("No processes to schedule.\n");
         return;
     }
-    for (int i = 0; i < temp_count - 1; i++) {
-        for (int j = 0; j < temp_count - i - 1; j++) {
+    for (int i = 0; i < tempCount - 1; i++) {
+        for (int j = 0; j < tempCount - i - 1; j++) {
             if (temp[j].priority > temp[j+1].priority) {
                 struct PCB t = temp[j];
                 temp[j] = temp[j+1];
@@ -519,12 +522,12 @@ void schedule_priority() {
             }
         }
     }
-    int current_time = 0;
-    int total_waiting = 0;
-    int total_turnaround = 0;
-    for (int i = 0; i < temp_count; i++) {
-        temp[i].waiting_time = current_time;
-        temp[i].turnaround_time = current_time + temp[i].burst_time;
+    int currentTime = 0;
+    int totalWaiting = 0;
+    int totalTurnaround = 0;
+    for (int i = 0; i < tempCount; i++) {
+        temp[i].waitingTime = currentTime;
+        temp[i].turnaroundTime = currentTime + temp[i].burstTime;
         int pid = temp[i].processID;
         int index = -1;
         for (int k = 0; k < processCount; k++) {
@@ -534,48 +537,48 @@ void schedule_priority() {
             }
         }
         if (index != -1) {
-            processTable[index].waiting_time = temp[i].waiting_time;
-            processTable[index].turnaround_time = temp[i].turnaround_time;
+            processTable[index].waitingTime = temp[i].waitingTime;
+            processTable[index].turnaroundTime = temp[i].turnaroundTime;
             processTable[index].state = RUNNING;
             updateProcessInFile(processTable[index]);
         }
         printf("Running: %s (PID=%d, Priority=%s) | Waiting=%d | Turnaround=%d\n",
-               temp[i].name, temp[i].processID, priority_to_str(temp[i].priority),
-               temp[i].waiting_time, temp[i].turnaround_time);
-        printf("  [Simulating %d time unit(s) of execution...]\n", temp[i].burst_time);
-        current_time += temp[i].burst_time;
-        total_waiting += temp[i].waiting_time;
-        total_turnaround += temp[i].turnaround_time;
+               temp[i].name, temp[i].processID, priorityToStr(temp[i].priority),
+               temp[i].waitingTime, temp[i].turnaroundTime);
+        printf("  [Simulating %d time unit(s) of execution...]\n", temp[i].burstTime);
+        currentTime += temp[i].burstTime;
+        totalWaiting += temp[i].waitingTime;
+        totalTurnaround += temp[i].turnaroundTime;
         if (index != -1) {
             processTable[index].state = TERMINATED;
-            release_process_resources(index);
+            releaseProcessResources(index);
             updateProcessInFile(processTable[index]);
         }
     }
     printf("\nResults:\n");
-    float avg_waiting = (float)total_waiting / temp_count;
-    float avg_turnaround = (float)total_turnaround / temp_count;
-    int total_burst = 0;
-    for (int i = 0; i < temp_count; i++) total_burst += temp[i].burst_time;
-    float cpu_util = (total_burst > 0) ? ((float)total_burst / current_time) * 100.0f : 0;
-    printf("Average Waiting Time: %.2f\n", avg_waiting);
-    printf("Average Turnaround Time: %.2f\n", avg_turnaround);
-    printf("CPU Utilization: %.2f%%\n", cpu_util);
-    log_scheduling("PRIORITY", avg_waiting, avg_turnaround);
+    float averageWaitingTime = (float)totalWaiting / tempCount;
+    float averageTurnaroundTime = (float)totalTurnaround / tempCount;
+    int totalBurst = 0;
+    for (int i = 0; i < tempCount; i++) totalBurst += temp[i].burstTime;
+    float cpuUtilities = (totalBurst > 0) ? ((float)totalBurst / currentTime) * 100.0f : 0;
+    printf("Average Waiting Time: %.2f\n", averageWaitingTime);
+    printf("Average Turnaround Time: %.2f\n", averageTurnaroundTime);
+    printf("CPU Utilization: %.2f%%\n", cpuUtilities);
+    logScheduling("PRIORITY", averageWaitingTime, averageTurnaroundTime);
 }
-void init_process_resources(int process_index) {
-    const char *resource_names[numResources] = {"ambulances", "fire trucks", "police units"};
-    int max_req[numResources];
+void initProcessResources(int processIndex) {
+    const char *resourceNames[numResources] = {"ambulances", "fire trucks", "police units"};
+    int maxReq[numResources];
     for (int j = 0; j < numResources; j++) {
         while (1) {
             printf("Enter number of %s needed for %s: ",
-                   resource_names[j], processTable[process_index].name);
-            if (scanf("%d", &max_req[j]) != 1) {
+                   resourceNames[j], processTable[processIndex].name);
+            if (scanf("%d", &maxReq[j]) != 1) {
                 while (getchar() != '\n');
                 printf("Invalid input. Enter a whole number.\n");
                 continue;
             }
-            if (max_req[j] < 0) {
+            if (maxReq[j] < 0) {
                 printf("Resource count cannot be negative. Try again.\n");
                 continue;
             }
@@ -583,35 +586,35 @@ void init_process_resources(int process_index) {
         }
     }
     for (int j = 0; j < numResources; j++) {
-        max_need[process_index][j] = max_req[j];
-        allocation[process_index][j] = 0;
-        need[process_index][j] = max_req[j];
+        maxNeed[processIndex][j] = maxReq[j];
+        allocation[processIndex][j] = 0;
+        need[processIndex][j] = maxReq[j];
     }
 }
-int is_safe_state(int num_proc) {
+int isSafeState(int numProcess) {
     int work[numResources];
     int finish[maxProcesses] = {0};
-    int safe_sequence[maxProcesses];
+    int safeSequence[maxProcesses];
     int count = 0;
     for (int i = 0; i < numResources; i++) {
         work[i] = available[i];
     }
-    while (count < num_proc) {
+    while (count < numProcess) {
         int found = 0;
-        for (int p = 0; p < num_proc; p++) {
+        for (int p = 0; p < numProcess; p++) {
             if (!finish[p]) {
-                int can_alloc = 1;
+                int canAlloc = 1;
                 for (int r = 0; r < numResources; r++) {
                     if (need[p][r] > work[r]) {
-                        can_alloc = 0;
+                        canAlloc = 0;
                         break;
                     }
                 }
-                if (can_alloc) {
+                if (canAlloc) {
                     for (int r = 0; r < numResources; r++) {
                         work[r] += allocation[p][r];
                     }
-                    safe_sequence[count] = p;
+                    safeSequence[count] = p;
                     finish[p] = 1;
                     count++;
                     found = 1;
@@ -625,25 +628,25 @@ int is_safe_state(int num_proc) {
     }
     printf("System is SAFE. Safe sequence: ");
     for (int i = 0; i < count; i++) {
-        printf("P%d ", safe_sequence[i]);
+        printf("P%d ", safeSequence[i]);
     }
     printf("\n");
     return 1;
 }
-void request_resources(int processID, int req[]) {
-    int process_index = -1;
+void requestResources(int processID, int req[]) {
+    int processIndex = -1;
     for (int i = 0; i < processCount; i++) {
         if (processTable[i].processID == processID) {
-            process_index = i;
+            processIndex = i;
             break;
         }
     }
-    if (process_index == -1) {
+    if (processIndex == -1) {
         printf("Process not found!\n");
         return;
     }
     for (int i = 0; i < numResources; i++) {
-        if (req[i] > need[process_index][i]) {
+        if (req[i] > need[processIndex][i]) {
             printf("Request exceeds maximum claim!\n");
             return;
         }
@@ -654,21 +657,21 @@ void request_resources(int processID, int req[]) {
     }
     for (int i = 0; i < numResources; i++) {
         available[i] -= req[i];
-        allocation[process_index][i] += req[i];
-        need[process_index][i] -= req[i];
+        allocation[processIndex][i] += req[i];
+        need[processIndex][i] -= req[i];
     }
-    if (is_safe_state(processCount)) {
+    if (isSafeState(processCount)) {
         printf("Resources allocated successfully to PID %d\n", processID);
     } else {
         for (int i = 0; i < numResources; i++) {
             available[i] += req[i];
-            allocation[process_index][i] -= req[i];
-            need[process_index][i] += req[i];
+            allocation[processIndex][i] -= req[i];
+            need[processIndex][i] += req[i];
         }
         printf("Allocation denied to prevent deadlock!\n");
     }
 }
-void show_resources() {
+void showResources() {
     printf("\nResource allocation\n");
     printf("Available Resources: R0(Ambulances)=%d  R1(Fire Units)=%d  R2(Police Units)=%d\n\n",
            available[0], available[1], available[2]);
@@ -682,115 +685,115 @@ void show_resources() {
                    need[i][0], need[i][1], need[i][2]);
         }
     }
-    show_memory_map();
+    showMemoryMap();
 }
 
 
-void init_system_memory() {
-    int sizes[NUM_PARTITIONS] = {150, 150, 250, 250, 300, 300};
-    for (int i = 0; i < NUM_PARTITIONS; i++) {
-        memory_map[i].block_id = i + 1;
-        memory_map[i].total_size = sizes[i];
-        memory_map[i].free_space = sizes[i];
-        memory_map[i].is_occupied = 0;
-        memory_map[i].assigned_pid = 0;
+void initSystemMemory() {
+    int sizes[numberOfPartitions] = {150, 150, 250, 250, 300, 300};
+    for (int i = 0; i < numberOfPartitions; i++) {
+        memoryMap[i].blockID = i + 1;
+        memoryMap[i].totalSize = sizes[i];
+        memoryMap[i].freeSpace = sizes[i];
+        memoryMap[i].isOccupied = 0;
+        memoryMap[i].assignedPID = 0;
     }
 }
 
-void free_system_memory() {
-    for (int i = 0; i < NUM_PARTITIONS; i++) {
-        memory_map[i].is_occupied = 0;
-        memory_map[i].assigned_pid = 0;
-        memory_map[i].free_space = memory_map[i].total_size;
+void freeSystemMemory() {
+    for (int i = 0; i < numberOfPartitions; i++) {
+        memoryMap[i].isOccupied = 0;
+        memoryMap[i].assignedPID = 0;
+        memoryMap[i].freeSpace = memoryMap[i].totalSize;
     }
 }
 
-int allocate_memory_first_fit(int pid, int size_required) {
-    for (int i = 0; i < NUM_PARTITIONS; i++) {
-        if (!memory_map[i].is_occupied && memory_map[i].total_size >= size_required) {
-            memory_map[i].is_occupied = 1;
-            memory_map[i].assigned_pid = pid;
-            memory_map[i].free_space = memory_map[i].total_size - size_required;
+int allocateMemoryFirstFit(int pid, int sizeRequired) {
+    for (int i = 0; i < numberOfPartitions; i++) {
+        if (!memoryMap[i].isOccupied && memoryMap[i].totalSize >= sizeRequired) {
+            memoryMap[i].isOccupied = 1;
+            memoryMap[i].assignedPID = pid;
+            memoryMap[i].freeSpace = memoryMap[i].totalSize - sizeRequired;
             printf("Allocated %d MB to PID %d in Partition %d (Internal fragmentation %d MB)\n",
-                   size_required, pid, memory_map[i].block_id, memory_map[i].free_space);
-            return memory_map[i].block_id;
+                   sizeRequired, pid, memoryMap[i].blockID, memoryMap[i].freeSpace);
+            return memoryMap[i].blockID;
         }
     }
     printf("Memory allocation failed for PID %d - no suitable partition (First-Fit).\n", pid);
     return -1;
 }
 
-void free_memory_by_pid(int pid) {
-    for (int i = 0; i < NUM_PARTITIONS; i++) {
-        if (memory_map[i].assigned_pid == pid) {
-            memory_map[i].is_occupied = 0;
-            memory_map[i].assigned_pid = 0;
-            memory_map[i].free_space = memory_map[i].total_size;
-            printf("Freed partition %d from PID %d\n", memory_map[i].block_id, pid);
+void freeMemoryByPID(int pid) {
+    for (int i = 0; i < numberOfPartitions; i++) {
+        if (memoryMap[i].assignedPID == pid) {
+            memoryMap[i].isOccupied = 0;
+            memoryMap[i].assignedPID = 0;
+            memoryMap[i].freeSpace = memoryMap[i].totalSize;
+            printf("Freed partition %d from PID %d\n", memoryMap[i].blockID, pid);
             return;
         }
     }
 }
 
-void show_memory_map() {
+void showMemoryMap() {
     printf("\nMemory partitions (MB):\n");
     printf("Part  Size  Free  Occupied PID\n");
-    for (int i = 0; i < NUM_PARTITIONS; i++) {
+    for (int i = 0; i < numberOfPartitions; i++) {
         printf("%4d  %4d  %4d    %s    %d\n",
-               memory_map[i].block_id,
-               memory_map[i].total_size,
-               memory_map[i].free_space,
-               memory_map[i].is_occupied ? "Yes" : "No ",
-               memory_map[i].assigned_pid);
+               memoryMap[i].blockID,
+               memoryMap[i].totalSize,
+               memoryMap[i].freeSpace,
+               memoryMap[i].isOccupied ? "Yes" : "No ",
+               memoryMap[i].assignedPID);
     }
 }
-void get_timestamp(char *buf, int size) {
+void getTimestamp(char *buf, int size) {
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
     strftime(buf, size, "%Y-%m-%d %H:%M:%S", t);
 }
-void log_event(char *event) {
-    FILE *fp = fopen("serc_log.txt", "a");
+void logEvent(char *event) {
+    FILE *fp = fopen("SERCLog.txt", "a");
     if (fp == NULL) {
         printf("Error opening log file!\n");
         return;
     }
     char ts[32];
-    get_timestamp(ts, sizeof(ts));
+    getTimestamp(ts, sizeof(ts));
     fprintf(fp, "[%s] [LOG] %s\n", ts, event);
     fclose(fp);
 }
-void log_process_action(char *action, int processID, char *name, char *description) {
-    FILE *fp = fopen("serc_log.txt", "a");
+void logProcessAction(char *action, int processID, char *name, char *description) {
+    FILE *fp = fopen("SERCLog.txt", "a");
     if (fp == NULL) {
         printf("Cannot write to log file!\n");
         return;
     }
     char ts[32];
-    get_timestamp(ts, sizeof(ts));
+    getTimestamp(ts, sizeof(ts));
     fprintf(fp, "[%s] [PROCESS] %s | PID=%d | Name=%s | Description=%s\n",
             ts, action, processID, name, description);
     fclose(fp);
 }
-void log_scheduling(char *algorithm, float avg_wait, float avg_turn) {
-    FILE *fp = fopen("serc_log.txt", "a");
+void logScheduling(char *algorithm, float averageWaitingTime, float averageTurnaround) {
+    FILE *fp = fopen("SERCLog.txt", "a");
     if (fp == NULL) return;
     char ts[32];
-    get_timestamp(ts, sizeof(ts));
+    getTimestamp(ts, sizeof(ts));
     fprintf(fp, "[%s] [SCHEDULER] %s | AvgWait=%.2f | AvgTurn=%.2f\n",
-            ts, algorithm, avg_wait, avg_turn);
+            ts, algorithm, averageWaitingTime, averageTurnaround);
     fclose(fp);
 }
-void log_deadlock_event(char *event, int processID) {
-    FILE *fp = fopen("serc_log.txt", "a");
+void logDeadlockEvent(char *event, int processID) {
+    FILE *fp = fopen("SERCLog.txt", "a");
     if (fp == NULL) return;
     char ts[32];
-    get_timestamp(ts, sizeof(ts));
+    getTimestamp(ts, sizeof(ts));
     fprintf(fp, "[%s] [DEADLOCK] %s | PID=%d\n", ts, event, processID);
     fclose(fp);
 }
-void view_log() {
-    FILE *fp = fopen("serc_log.txt", "r");
+void viewLog() {
+    FILE *fp = fopen("SERCLog.txt", "r");
     if (fp == NULL) {
         printf("No log file found. Create some events first.\n");
         return;
@@ -802,8 +805,8 @@ void view_log() {
     }
     fclose(fp);
 }
-void clear_log() {
-    FILE *fp = fopen("serc_log.txt", "w");
+void clearLog() {
+    FILE *fp = fopen("SERCLog.txt", "w");
     if (fp == NULL) {
         printf("Cannot clear log!\n");
         return;
@@ -811,17 +814,17 @@ void clear_log() {
     fclose(fp);
     printf("Log file cleared.\n");
 }
-int handle_menu_choice(int choice) {
+int handleMenuChoice(int choice) {
     int processID;
     
     if (choice == 1) {
-        create_process();
+        createProcess();
     } else if (choice == 2) {
-        list_processes();
+        listProcesses();
     } else if (choice == 3) {
-        int sub_choice;
+        int subChoice;
         printf("Choose action for process: 1=Suspend, 2=Resume: ");
-        scanf("%d", &sub_choice);
+        scanf("%d", &subChoice);
         printf("Enter PID: ");
         scanf("%d", &processID);
         char desc[100] = "";
@@ -831,12 +834,12 @@ int handle_menu_choice(int choice) {
                 break;
             }
         }
-        if (sub_choice == 1) {
-            suspend_process(processID);
-            log_process_action("SUSPENDED", processID, "", desc);
-        } else if (sub_choice == 2) {
-            resume_process(processID);
-            log_process_action("RESUMED", processID, "", desc);
+        if (subChoice == 1) {
+            suspendProcess(processID);
+            logProcessAction("SUSPENDED", processID, "", desc);
+        } else if (subChoice == 2) {
+            resumeProcess(processID);
+            logProcessAction("RESUMED", processID, "", desc);
         } else {
             printf("Invalid action selected.\n");
         }
@@ -850,42 +853,42 @@ int handle_menu_choice(int choice) {
                 break;
             }
         }
-        terminate_process(processID);
-        log_process_action("TERMINATED", processID, "", desc);
+        terminateProcess(processID);
+        logProcessAction("TERMINATED", processID, "", desc);
     } else if (choice == 5) {
-        int alg_choice;
+        int algChoice;
         printf("Choose scheduling algorithm: 1=FCFS, 2=Priority: ");
-        scanf("%d", &alg_choice);
-        if (alg_choice == 1) {
-            schedule_fcfs();
-        } else if (alg_choice == 2) {
-            schedule_priority();
+        scanf("%d", &algChoice);
+        if (algChoice == 1) {
+            scheduleFCFS();
+        } else if (algChoice == 2) {
+            schedulePriority();
         } else {
             printf("Invalid scheduling option. Use 1 or 2.\n");
         }
     } else if (choice == 6) {
-        show_resources();
+        showResources();
     } else if (choice == 7) {
         int req[3];
         printf("Enter PID: ");
         scanf("%d", &processID);
         printf("Enter request for (Ambulances, Fire Units, Police Units): ");
         scanf("%d %d %d", &req[0], &req[1], &req[2]);
-        request_resources(processID, req);
-        log_deadlock_event("REQUEST", processID);
+        requestResources(processID, req);
+        logDeadlockEvent("REQUEST", processID);
     } else if (choice == 8) {
-        view_log();
+        viewLog();
     } else if (choice == 9) {
-        clear_log();
+        clearLog();
     } else if (choice == 10) {
-        int sub_choice;
+        int subChoice;
         printf("Delete single process (1) or delete all processes (2)? ");
-        scanf("%d", &sub_choice);
-        if (sub_choice == 1) {
+        scanf("%d", &subChoice);
+        if (subChoice == 1) {
             printf("Enter PID to delete: ");
             scanf("%d", &processID);
-            delete_process(processID);
-        } else if (sub_choice == 2) {
+            deleteProcess(processID);
+        } else if (subChoice == 2) {
             char confirm;
             printf("Are you sure you want to delete all processes? (y/n): ");
             scanf(" %c", &confirm);
@@ -898,7 +901,7 @@ int handle_menu_choice(int choice) {
             printf("Invalid delete option.\n");
         }
     } else if (choice == 11) {
-        log_event("System shutdown");
+        logEvent("System shutdown");
         printf("Shutting down SERC OS...\n");
         return 0;
     } else {
@@ -910,17 +913,17 @@ int handle_menu_choice(int choice) {
 int main() {
     int choice;
     printf("SMART EMERGENCY RESPONSE CENTER OS SIMULATOR\n");
-    log_event("System started");
+    logEvent("System started");
     loadProcessesFromFile();
-    init_system_memory();
+    initSystemMemory();
     
     for (int i = 0; i < processCount; i++) {
         int pid = processTable[i].processID;
-        int part = processTable[i].memory_partition_id;
-        if (part > 0 && part <= NUM_PARTITIONS) {
-            memory_map[part - 1].is_occupied = 1;
-            memory_map[part - 1].assigned_pid = pid;
-            memory_map[part - 1].free_space = memory_map[part - 1].total_size - processTable[i].memory_required;
+        int part = processTable[i].memoryPartitionID;
+        if (part > 0 && part <= numberOfPartitions) {
+            memoryMap[part - 1].isOccupied = 1;
+            memoryMap[part - 1].assignedPID = pid;
+            memoryMap[part - 1].freeSpace = memoryMap[part - 1].totalSize - processTable[i].memoryRequired;
         }
     }
     while (1) {
@@ -938,7 +941,7 @@ int main() {
         printf("11. exit\n");
         printf("Enter choice: ");
         scanf("%d", &choice);
-        if (!handle_menu_choice(choice)) {
+        if (!handleMenuChoice(choice)) {
             break;
         }
     }
