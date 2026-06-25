@@ -1,0 +1,10 @@
+[2026-06-21 22:58:28] [LOG] System started
+[2026-06-21 23:01:01] [PROCESS] CREATED | PID=1 | Name=quan | Description=quan 102
+[2026-06-25 11:16:02] [LOG] System started
+[2026-06-25 11:16:22] [SCHEDULER] FCFS | AvgWait=0.00 | AvgTurn=10.00
+[2026-06-25 11:17:30] [LOG] System shutdown
+[2026-06-25 11:17:35] [LOG] System started
+[2026-06-25 11:17:35] [LOG] System started
+[2026-06-25 11:37:18] [LOG] System started
+[2026-06-25 11:38:38] [LOG] System started
+[2026-06-25 11:38:44] [LOG] System shutdown
